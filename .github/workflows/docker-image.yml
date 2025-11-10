@@ -43,5 +43,3 @@ jobs:
           push: true # Garante que a imagem será enviada (push)
           tags: |
             crisbrandt/wwebjs-api:latest
-            # Você pode adicionar mais tags, como a versão do commit
-            # seunomedeusuario/seurepositorio:${{ github.sha }}
