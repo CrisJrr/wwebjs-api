@@ -11,6 +11,7 @@ services:
     ports:
       - "3000:3000"
     env_file: .env
+    user: "0:0"
     volumes:
       - ./sessions:/usr/src/app/sessions
     # Optional healthcheck
