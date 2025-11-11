@@ -33,4 +33,9 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Copy and prepare entrypoint
+COPY entrypoint.sh /usr/src/app/entrypoint.sh
+RUN chmod +x /usr/src/app/entrypoint.sh
+
+# Run the entrypoint script
+ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
