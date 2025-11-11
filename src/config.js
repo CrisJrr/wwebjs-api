@@ -15,7 +15,7 @@ const webVersion = process.env.WEB_VERSION
 const webVersionCacheType = process.env.WEB_VERSION_CACHE_TYPE || 'none'
 const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX) || 1000
 const rateLimitWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 1000
-const recoverSessions = (process.env.RECOVER_SESSIONS || '').toLowerCase() === 'true'
+const recoverSessions = (process.env.RECOVER_SESSIONS || '').toLowerCase() === 'false'
 const chromeBin = process.env.CHROME_BIN || null
 const headless = process.env.HEADLESS ? (process.env.HEADLESS).toLowerCase() === 'true' : true
 const releaseBrowserLock = process.env.RELEASE_BROWSER_LOCK ? (process.env.RELEASE_BROWSER_LOCK).toLowerCase() === 'true' : true
