@@ -12,7 +12,7 @@ services:
       - "3000:3000"
     env_file: .env
     volumes:
-      - ./sessions:/usr/src/sessions
+      - /home/suporte/wwebjs-api/sessions:/usr/src/app/sessions
     # Optional healthcheck
     # healthcheck:
     #   test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
