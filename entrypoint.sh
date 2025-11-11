@@ -7,4 +7,4 @@ mkdir -p /usr/src/app/sessions
 chmod -R 777 /usr/src/app/sessions
 
 echo "🚀 Iniciando API..."
-exec node server.js
+exec npm start
