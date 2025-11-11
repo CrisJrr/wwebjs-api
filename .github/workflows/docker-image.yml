@@ -42,6 +42,4 @@ jobs:
           file: ./Dockerfile # Localização do seu Dockerfile
           push: true # Garante que a imagem será enviada (push)
           tags: |
-            seunomedeusuario/seurepositorio:latest
-            # Você pode adicionar mais tags, como a versão do commit
-            # seunomedeusuario/seurepositorio:${{ github.sha }}
+            crisbrandt/wwebjs-api:latest
