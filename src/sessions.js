@@ -90,7 +90,7 @@ const setupSession = async (sessionId) => {
     if (sessions.has(sessionId)) {
       return { success: false, message: `Session already exists for: ${sessionId}`, client: sessions.get(sessionId) }
     }
-    logger.info({ sessionId }, 'Session is being initiated')
+    console.log({ sessionId }, 'Session is being initiated')
     // Disable the delete folder from the logout function (will be handled separately)
     const localAuth = new LocalAuth({ clientId: sessionId, dataPath: sessionFolderPath })
     delete localAuth.logout
@@ -545,11 +545,11 @@ const deleteSession = async (sessionId, validation) => {
     }
     if (validation.success) {
       // Client Connected, request logout
-      logger.info({ sessionId }, 'Logging out session')
+      console.log({ sessionId }, 'Logging out session')
       await client.logout()
     } else if (validation.message === 'session_not_connected') {
       // Client not Connected, request destroy
-      logger.info({ sessionId }, 'Destroying session')
+      console.log({ sessionId }, 'Destroying session')
       await client.destroy()
     }
     // Wait 10 secs for client.pupBrowser to be disconnected before deleting the folder
@@ -591,17 +591,17 @@ const flushSessions = async (deleteOnlyInactive) => {
 
 const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     // --- DEBUG LOGS ---
-    logger.info(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
+    console.log(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
     
     const sessionSpecificUrl = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'];
-    logger.info(`[DEBUG] URL Específica da Sessão: ${sessionSpecificUrl || 'Nenhuma'}`);
+    console.log(`[DEBUG] URL Específica da Sessão: ${sessionSpecificUrl || 'Nenhuma'}`);
 
     // Verifica se callbackURLList existe
     if (!callbackURLList) {
         logger.error(`[CRITICO] callbackURLList é undefined! Verifique as importações no topo do sessions.js`);
         return;
     }
-    logger.info(`[DEBUG] Lista Global (Config): ${JSON.stringify(callbackURLList)}`);
+    console.log(`[DEBUG] Lista Global (Config): ${JSON.stringify(callbackURLList)}`);
     // ------------------
 
     const targets = new Set();
@@ -612,7 +612,7 @@ const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     
     callbackURLList.forEach(url => targets.add(url));
     
-    logger.info(`[DEBUG] Total de URLs alvo: ${targets.size}`);
+    console.log(`[DEBUG] Total de URLs alvo: ${targets.size}`);
 
     if (targets.size === 0) {
         logger.warn({ sessionId, event }, 'Nenhum Webhook URL definido para este evento.');
@@ -620,7 +620,7 @@ const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     }
     
     const promises = Array.from(targets).map(url => {
-        logger.info(`[DEBUG] Disparando para: ${url}`);
+        console.log(`[DEBUG] Disparando para: ${url}`);
         return triggerWebhook(url, sessionId, event, payload);
     });
 
@@ -630,7 +630,7 @@ const triggerAllWebhooks = (sessionId, event, payload = {}) => {
             if (result.status === 'rejected') {
                 logger.error({ sessionId, url: targetUrl, event, err: result.reason }, '❌ Falha ao disparar Webhook');
             } else {
-                logger.info({ sessionId, url: targetUrl, event }, '✅ Webhook enviado com sucesso');
+                console.log({ sessionId, url: targetUrl, event }, '✅ Webhook enviado com sucesso');
             }
         });
     }).catch(e => {
