@@ -5,7 +5,6 @@ require('dotenv').config()
 const sessionFolderPath = process.env.SESSIONS_PATH || '/usr/src/app/sessions'
 const enableLocalCallbackExample = (process.env.ENABLE_LOCAL_CALLBACK_EXAMPLE || '').toLowerCase() === 'true'
 const globalApiKey = process.env.API_KEY
-const baseWebhookURL = process.env.BASE_WEBHOOK_URL ? process.env.BASE_WEBHOOK_URL.split('|') : []
 const maxAttachmentSize = parseInt(process.env.MAX_ATTACHMENT_SIZE) || 10000000
 const setMessagesAsSeen = (process.env.SET_MESSAGES_AS_SEEN || '').toLowerCase() === 'true'
 const disabledCallbacks = process.env.DISABLED_CALLBACKS ? process.env.DISABLED_CALLBACKS.split('|') : []
@@ -24,12 +23,14 @@ const enableWebSocket = process.env.ENABLE_WEBSOCKET ? (process.env.ENABLE_WEBSO
 const autoStartSessions = process.env.AUTO_START_SESSIONS ? (process.env.AUTO_START_SESSIONS).toLowerCase() === 'true' : true
 const basePath = process.env.BASE_PATH || ''
 const trustProxy = process.env.TRUST_PROXY ? (process.env.TRUST_PROXY).toLowerCase() === 'true' : false
+const rawCallbacks = process.env.CALLBACK_WEBHOOKS || '';
+const callbackURLList = rawCallbacks.split('|').map(url => url.trim()).filter(url => url !== '');
+const baseWebhookURL = process.env.BASE_WEBHOOK_URL;
 
 module.exports = {
   sessionFolderPath,
   enableLocalCallbackExample,
   globalApiKey,
-  baseWebhookURL,
   maxAttachmentSize,
   setMessagesAsSeen,
   disabledCallbacks,
@@ -47,5 +48,7 @@ module.exports = {
   enableWebSocket,
   autoStartSessions,
   basePath,
-  trustProxy
+  trustProxy,
+  baseWebhookURL,
+  callbackURLList
 }

@@ -2,7 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js')
 const fs = require('fs')
 const path = require('path')
 const sessions = new Map()
-const { baseWebhookURL, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
+const { baseWebhookURL, callbackURLList, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
 const { triggerWebhook, waitForNestedObject, isEventEnabled, sendMessageSeenStatus, sleep, patchWWebLibrary } = require('./utils')
 const { logger } = require('./logger')
 const { initWebSocketServer, terminateWebSocketServer, triggerWebSocket } = require('./websocket')
@@ -200,7 +200,7 @@ const setupSession = async (sessionId) => {
 
 const initializeEvents = (client, sessionId) => {
   // check if the session webhook is overridden
-  const sessionWebhook = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'] || baseWebhookURL
+//   const sessionWebhook = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'] || baseWebhookURL
 
   if (recoverSessions) {
     waitForNestedObject(client, 'pupPage').then(() => {
@@ -238,7 +238,7 @@ const initializeEvents = (client, sessionId) => {
 
   if (isEventEnabled('auth_failure')) {
     client.on('auth_failure', (msg) => {
-      triggerWebhook(sessionWebhook, sessionId, 'status', { msg })
+      triggerAllWebhooks(sessionId, 'status', { msg })
       triggerWebSocket(sessionId, 'status', { msg })
     })
   }
@@ -246,90 +246,90 @@ const initializeEvents = (client, sessionId) => {
   client.on('authenticated', () => {
     client.qr = null
     if (isEventEnabled('authenticated')) {
-      triggerWebhook(sessionWebhook, sessionId, 'authenticated')
+      triggerAllWebhooks(sessionId, 'authenticated')
       triggerWebSocket(sessionId, 'authenticated')
     }
   })
 
   // if (isEventEnabled('call')) {
   //   client.on('call', (call) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'call', { call })
+  //     triggerAllWebhooks(sessionId, 'call', { call })
   //     triggerWebSocket(sessionId, 'call', { call })
   //   })
   // }
 
   // if (isEventEnabled('change_state')) {
   //   client.on('change_state', state => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'change_state', { state })
+  //     triggerAllWebhooks(sessionId, 'change_state', { state })
   //     triggerWebSocket(sessionId, 'change_state', { state })
   //   })
   // }
 
   if (isEventEnabled('disconnected')) {
     client.on('disconnected', (reason) => {
-      triggerWebhook(sessionWebhook, sessionId, 'disconnected', { reason })
+      triggerAllWebhooks(sessionId, 'disconnected', { reason })
       triggerWebSocket(sessionId, 'disconnected', { reason })
     })
   }
 
   // if (isEventEnabled('group_join')) {
   //   client.on('group_join', (notification) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'group_join', { notification })
+  //     triggerAllWebhooks(sessionId, 'group_join', { notification })
   //     triggerWebSocket(sessionId, 'group_join', { notification })
   //   })
   // }
 
   // if (isEventEnabled('group_leave')) {
   //   client.on('group_leave', (notification) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'group_leave', { notification })
+  //     triggerAllWebhooks(sessionId, 'group_leave', { notification })
   //     triggerWebSocket(sessionId, 'group_leave', { notification })
   //   })
   // }
 
   // if (isEventEnabled('group_admin_changed')) {
   //   client.on('group_admin_changed', (notification) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'group_admin_changed', { notification })
+  //     triggerAllWebhooks(sessionId, 'group_admin_changed', { notification })
   //     triggerWebSocket(sessionId, 'group_admin_changed', { notification })
   //   })
   // }
 
   // if (isEventEnabled('group_membership_request')) {
   //   client.on('group_membership_request', (notification) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'group_membership_request', { notification })
+  //     triggerAllWebhooks(sessionId, 'group_membership_request', { notification })
   //     triggerWebSocket(sessionId, 'group_membership_request', { notification })
   //   })
   // }
 
   // if (isEventEnabled('group_update')) {
   //   client.on('group_update', (notification) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'group_update', { notification })
+  //     triggerAllWebhooks(sessionId, 'group_update', { notification })
   //     triggerWebSocket(sessionId, 'group_update', { notification })
   //   })
   // }
 
   // if (isEventEnabled('loading_screen')) {
   //   client.on('loading_screen', (percent, message) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'loading_screen', { percent, message })
+  //     triggerAllWebhooks(sessionId, 'loading_screen', { percent, message })
   //     triggerWebSocket(sessionId, 'loading_screen', { percent, message })
   //   })
   // }
 
   // if (isEventEnabled('media_uploaded')) {
   //   client.on('media_uploaded', (message) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'media_uploaded', { message })
+  //     triggerAllWebhooks(sessionId, 'media_uploaded', { message })
   //     triggerWebSocket(sessionId, 'media_uploaded', { message })
   //   })
   // }
 
   client.on('message', async (message) => {
     if (isEventEnabled('message')) {
-      triggerWebhook(sessionWebhook, sessionId, 'message', { message })
+      triggerAllWebhooks(sessionId, 'message', { message })
       triggerWebSocket(sessionId, 'message', { message })
       if (message.hasMedia && message._data?.size < maxAttachmentSize) {
       // custom service event
         if (isEventEnabled('media')) {
           message.downloadMedia().then(messageMedia => {
-            triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
+            triggerAllWebhooks(sessionId, 'media', { messageMedia, message })
             triggerWebSocket(sessionId, 'media', { messageMedia, message })
           }).catch(error => {
             logger.error({ sessionId, err: error }, 'Failed to download media')
@@ -346,49 +346,49 @@ const initializeEvents = (client, sessionId) => {
 
   // if (isEventEnabled('message_ack')) {
   //   client.on('message_ack', (message, ack) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_ack', { message, ack })
+  //     triggerAllWebhooks(sessionId, 'message_ack', { message, ack })
   //     triggerWebSocket(sessionId, 'message_ack', { message, ack })
   //   })
   // }
 
   // if (isEventEnabled('message_create')) {
   //   client.on('message_create', (message) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_create', { message })
+  //     triggerAllWebhooks(sessionId, 'message_create', { message })
   //     triggerWebSocket(sessionId, 'message_create', { message })
   //   })
   // }
 
   // if (isEventEnabled('message_reaction')) {
   //   client.on('message_reaction', (reaction) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_reaction', { reaction })
+  //     triggerAllWebhooks(sessionId, 'message_reaction', { reaction })
   //     triggerWebSocket(sessionId, 'message_reaction', { reaction })
   //   })
   // }
 
   // if (isEventEnabled('message_edit')) {
   //   client.on('message_edit', (message, newBody, prevBody) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_edit', { message, newBody, prevBody })
+  //     triggerAllWebhooks(sessionId, 'message_edit', { message, newBody, prevBody })
   //     triggerWebSocket(sessionId, 'message_edit', { message, newBody, prevBody })
   //   })
   // }
 
   // if (isEventEnabled('message_ciphertext')) {
   //   client.on('message_ciphertext', (message) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_ciphertext', { message })
+  //     triggerAllWebhooks(sessionId, 'message_ciphertext', { message })
   //     triggerWebSocket(sessionId, 'message_ciphertext', { message })
   //   })
   // }
 
   // if (isEventEnabled('message_revoke_everyone')) {
   //   client.on('message_revoke_everyone', (message) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_revoke_everyone', { message })
+  //     triggerAllWebhooks(sessionId, 'message_revoke_everyone', { message })
   //     triggerWebSocket(sessionId, 'message_revoke_everyone', { message })
   //   })
   // }
 
   // if (isEventEnabled('message_revoke_me')) {
   //   client.on('message_revoke_me', (message, revokedMsg) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'message_revoke_me', { message, revokedMsg })
+  //     triggerAllWebhooks(sessionId, 'message_revoke_me', { message, revokedMsg })
   //     triggerWebSocket(sessionId, 'message_revoke_me', { message, revokedMsg })
   //   })
   // }
@@ -397,56 +397,56 @@ const initializeEvents = (client, sessionId) => {
     // inject qr code into session
     client.qr = qr
     if (isEventEnabled('qr')) {
-      triggerWebhook(sessionWebhook, sessionId, 'qr', { qr })
+      triggerAllWebhooks(sessionId, 'qr', { qr })
       triggerWebSocket(sessionId, 'qr', { qr })
     }
   })
 
   if (isEventEnabled('ready')) {
     client.on('ready', () => {
-      triggerWebhook(sessionWebhook, sessionId, 'ready')
+      triggerAllWebhooks(sessionId, 'ready')
       triggerWebSocket(sessionId, 'ready')
     })
   }
 
   // if (isEventEnabled('contact_changed')) {
   //   client.on('contact_changed', (message, oldId, newId, isContact) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'contact_changed', { message, oldId, newId, isContact })
+  //     triggerAllWebhooks(sessionId, 'contact_changed', { message, oldId, newId, isContact })
   //     triggerWebSocket(sessionId, 'contact_changed', { message, oldId, newId, isContact })
   //   })
   // }
 
   // if (isEventEnabled('chat_removed')) {
   //   client.on('chat_removed', (chat) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'chat_removed', { chat })
+  //     triggerAllWebhooks(sessionId, 'chat_removed', { chat })
   //     triggerWebSocket(sessionId, 'chat_removed', { chat })
   //   })
   // }
 
   // if (isEventEnabled('chat_archived')) {
   //   client.on('chat_archived', (chat, currState, prevState) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'chat_archived', { chat, currState, prevState })
+  //     triggerAllWebhooks(sessionId, 'chat_archived', { chat, currState, prevState })
   //     triggerWebSocket(sessionId, 'chat_archived', { chat, currState, prevState })
   //   })
   // }
 
   // if (isEventEnabled('unread_count')) {
   //   client.on('unread_count', (chat) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'unread_count', { chat })
+  //     triggerAllWebhooks(sessionId, 'unread_count', { chat })
   //     triggerWebSocket(sessionId, 'unread_count', { chat })
   //   })
   // }
 
   // if (isEventEnabled('vote_update')) {
   //   client.on('vote_update', (vote) => {
-  //     triggerWebhook(sessionWebhook, sessionId, 'vote_update', { vote })
+  //     triggerAllWebhooks(sessionId, 'vote_update', { vote })
   //     triggerWebSocket(sessionId, 'vote_update', { vote })
   //   })
   // }
 
 //   if (isEventEnabled('code')) {
 //     client.on('code', (code) => {
-//       triggerWebhook(sessionWebhook, sessionId, 'code', { code })
+//       triggerAllWebhooks(sessionId, 'code', { code })
 //       triggerWebSocket(sessionId, 'code', { code })
 //     })
 //   }
@@ -589,6 +589,50 @@ const flushSessions = async (deleteOnlyInactive) => {
   }
 }
 
+const triggerAllWebhooks = (sessionId, event, payload = {}) => {
+    
+    // 1. Obtém a URL específica da sessão (override, ex: SESSION_ABC_WEBHOOK_URL)
+    // baseWebhookURL foi mantida para retrocompatibilidade, mas idealmente usa-se a nova lista.
+    const sessionSpecificUrl = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'];
+    
+    // 2. Cria o conjunto de destinos para evitar URLs duplicadas
+    const targets = new Set();
+    
+    // Adiciona a URL específica da sessão se existir (primeira prioridade)
+    if (sessionSpecificUrl) {
+        targets.add(sessionSpecificUrl);
+    }
+    
+    // Adiciona todas as URLs da lista configurada (CALLBACK_WEBHOOKS)
+    // NOTE: 'callbackURLList' foi importado do config.js
+    callbackURLList.forEach(url => targets.add(url));
+    
+    if (targets.size === 0) {
+        logger.warn({ sessionId, event }, 'Nenhum Webhook URL definido para este evento. Ignorando.');
+        return;
+    }
+    
+    // 3. Executa todas as chamadas em paralelo (usando a função importada 'triggerWebhook')
+    const promises = Array.from(targets).map(url => {
+        // Chamada ao triggerWebhook original (função que faz o POST real)
+        return triggerWebhook(url, sessionId, event, payload);
+    });
+
+    // 4. Promise.allSettled: Garante que todas as chamadas sejam tentadas, mesmo que uma falhe.
+    Promise.allSettled(promises).then(results => {
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                const targetUrl = Array.from(targets)[index]; 
+                logger.error({ sessionId, url: targetUrl, event, err: result.reason }, 'Falha ao disparar Webhook');
+            } else {
+                 logger.debug({ sessionId, url: Array.from(targets)[index], event }, 'Webhook disparado com sucesso');
+            }
+        });
+    }).catch(e => {
+        logger.error({ sessionId, event, err: e }, 'Erro fatal ao executar Promise.allSettled');
+    });
+};
+
 module.exports = {
   sessions,
   setupSession,
@@ -597,5 +641,6 @@ module.exports = {
   deleteSession,
   reloadSession,
   flushSessions,
+  triggerAllWebhooks,
   destroySession
 }
