@@ -590,46 +590,51 @@ const flushSessions = async (deleteOnlyInactive) => {
 }
 
 const triggerAllWebhooks = (sessionId, event, payload = {}) => {
+    // --- DEBUG LOGS ---
+    logger.info(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
     
-    // 1. Obtém a URL específica da sessão (override, ex: SESSION_ABC_WEBHOOK_URL)
-    // baseWebhookURL foi mantida para retrocompatibilidade, mas idealmente usa-se a nova lista.
     const sessionSpecificUrl = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'];
-    
-    // 2. Cria o conjunto de destinos para evitar URLs duplicadas
+    logger.info(`[DEBUG] URL Específica da Sessão: ${sessionSpecificUrl || 'Nenhuma'}`);
+
+    // Verifica se callbackURLList existe
+    if (!callbackURLList) {
+        logger.error(`[CRITICO] callbackURLList é undefined! Verifique as importações no topo do sessions.js`);
+        return;
+    }
+    logger.info(`[DEBUG] Lista Global (Config): ${JSON.stringify(callbackURLList)}`);
+    // ------------------
+
     const targets = new Set();
     
-    // Adiciona a URL específica da sessão se existir (primeira prioridade)
     if (sessionSpecificUrl) {
         targets.add(sessionSpecificUrl);
     }
     
-    // Adiciona todas as URLs da lista configurada (CALLBACK_WEBHOOKS)
-    // NOTE: 'callbackURLList' foi importado do config.js
     callbackURLList.forEach(url => targets.add(url));
     
+    logger.info(`[DEBUG] Total de URLs alvo: ${targets.size}`);
+
     if (targets.size === 0) {
-        logger.warn({ sessionId, event }, 'Nenhum Webhook URL definido para este evento. Ignorando.');
+        logger.warn({ sessionId, event }, 'Nenhum Webhook URL definido para este evento.');
         return;
     }
     
-    // 3. Executa todas as chamadas em paralelo (usando a função importada 'triggerWebhook')
     const promises = Array.from(targets).map(url => {
-        // Chamada ao triggerWebhook original (função que faz o POST real)
+        logger.info(`[DEBUG] Disparando para: ${url}`);
         return triggerWebhook(url, sessionId, event, payload);
     });
 
-    // 4. Promise.allSettled: Garante que todas as chamadas sejam tentadas, mesmo que uma falhe.
     Promise.allSettled(promises).then(results => {
         results.forEach((result, index) => {
+            const targetUrl = Array.from(targets)[index];
             if (result.status === 'rejected') {
-                const targetUrl = Array.from(targets)[index]; 
-                logger.error({ sessionId, url: targetUrl, event, err: result.reason }, 'Falha ao disparar Webhook');
+                logger.error({ sessionId, url: targetUrl, event, err: result.reason }, '❌ Falha ao disparar Webhook');
             } else {
-                 logger.debug({ sessionId, url: Array.from(targets)[index], event }, 'Webhook disparado com sucesso');
+                logger.info({ sessionId, url: targetUrl, event }, '✅ Webhook enviado com sucesso');
             }
         });
     }).catch(e => {
-        logger.error({ sessionId, event, err: e }, 'Erro fatal ao executar Promise.allSettled');
+        logger.error({ sessionId, event, err: e }, 'Erro fatal no Promise.all');
     });
 };
 
