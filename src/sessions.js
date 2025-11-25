@@ -592,8 +592,9 @@ const flushSessions = async (deleteOnlyInactive) => {
 const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     // --- DEBUG LOGS ---
     console.log(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
-    
-    const sessionSpecificUrl = process.env[sessionId.toUpperCase() + '_WEBHOOK_URL'];
+
+    const envKey = 'SESSION_' + sessionId.toUpperCase() + '_WEBHOOK_URL';
+    const sessionSpecificUrl = process.env[envKey];
     console.log(`[DEBUG] URL Específica da Sessão: ${sessionSpecificUrl || 'Nenhuma'}`);
 
     // Verifica se callbackURLList existe
@@ -608,6 +609,13 @@ const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     
     if (sessionSpecificUrl) {
         targets.add(sessionSpecificUrl);
+    }
+
+    if (!sessionSpecificUrl) {
+    // Vamos procurar se existe alguma variável parecida (para caçar espaços invisíveis)
+    const chavesParecidas = Object.keys(process.env).filter(k => k.includes(sessionId));
+    logger.info(`[DEBUG] Tentamos ler a chave: "${envKey}" mas não achamos.`);
+    logger.info(`[DEBUG] Variáveis no sistema que contêm "${sessionId}": ${JSON.stringify(chavesParecidas)}`);
     }
     
     callbackURLList.forEach(url => targets.add(url));
