@@ -2,10 +2,11 @@ const { Client, LocalAuth } = require('whatsapp-web.js')
 const fs = require('fs')
 const path = require('path')
 const sessions = new Map()
-const { baseWebhookURL, callbackURLList, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
+const { disableGlobalWebhooks, baseWebhookURL, callbackURLList, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
 const { triggerWebhook, waitForNestedObject, isEventEnabled, sendMessageSeenStatus, sleep, patchWWebLibrary } = require('./utils')
 const { logger } = require('./logger')
 const { initWebSocketServer, terminateWebSocketServer, triggerWebSocket } = require('./websocket')
+const { sendToQueue } = require('./services/rabbitmqService')
 
 // Function to validate if the session is ready
 const validateSession = async (sessionId) => {
@@ -325,6 +326,29 @@ const initializeEvents = (client, sessionId) => {
     if (isEventEnabled('message')) {
       triggerAllWebhooks(sessionId, 'message', { message })
       triggerWebSocket(sessionId, 'message', { message })
+
+      try {
+          // Montamos um payload limpo para o Engenheiro de Dados (Você)
+          const rabbitPayload = {
+              sessionId: sessionId,
+              event: 'message',
+              from: message.from, // Quem mandou (ex: 551199999999@c.us)
+              to: message.to,
+              body: message.body, // O texto da mensagem
+              hasMedia: message.hasMedia,
+              timestamp: message.timestamp,
+              deviceType: message.deviceType,
+              isGroup: message.from.includes('@g.us') // Flag útil para analise
+          };
+
+          // Envia para a fila 'tarefas_importantes'
+          await sendToQueue(rabbitPayload);
+          // logger.info({ sessionId, from: message.from }, 'Mensagem enviada para RabbitMQ'); 
+
+      } catch (err) {
+          logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
+      }
+
       if (message.hasMedia && message._data?.size < maxAttachmentSize) {
       // custom service event
         if (isEventEnabled('media')) {
@@ -591,44 +615,37 @@ const flushSessions = async (deleteOnlyInactive) => {
 
 const triggerAllWebhooks = (sessionId, event, payload = {}) => {
     // --- DEBUG LOGS ---
-    console.log(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
+    // console.log(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
 
     const envKey = 'SESSION_' + sessionId.toUpperCase() + '_WEBHOOK_URL';
     const sessionSpecificUrl = process.env[envKey];
-    console.log(`[DEBUG] URL Específica da Sessão: ${sessionSpecificUrl || 'Nenhuma'}`);
-
-    // Verifica se callbackURLList existe
+    
+    // Verifica se callbackURLList existe para evitar crash
     if (!callbackURLList) {
-        logger.error(`[CRITICO] callbackURLList é undefined! Verifique as importações no topo do sessions.js`);
+        logger.error(`[CRITICO] callbackURLList é undefined!`);
         return;
     }
-    console.log(`[DEBUG] Lista Global (Config): ${JSON.stringify(callbackURLList)}`);
-    // ------------------
 
     const targets = new Set();
     
+    // 1. Sempre tenta adicionar a URL Específica da sessão
     if (sessionSpecificUrl) {
         targets.add(sessionSpecificUrl);
     }
 
-    if (!sessionSpecificUrl) {
-    // Vamos procurar se existe alguma variável parecida (para caçar espaços invisíveis)
-    const chavesParecidas = Object.keys(process.env).filter(k => k.includes(sessionId));
-    logger.info(`[DEBUG] Tentamos ler a chave: "${envKey}" mas não achamos.`);
-    logger.info(`[DEBUG] Variáveis no sistema que contêm "${sessionId}": ${JSON.stringify(chavesParecidas)}`);
+    // 2. Só adiciona os Globais se a configuração permitir
+    // Se DISABLE_GLOBAL_WEBHOOKS for true, ele PULA este bloco
+    if (!disableGlobalWebhooks) {
+        callbackURLList.forEach(url => targets.add(url));
     }
     
-    callbackURLList.forEach(url => targets.add(url));
-    
-    console.log(`[DEBUG] Total de URLs alvo: ${targets.size}`);
-
+    // Se não tiver nenhuma URL (nem específica, nem global habilitada), sai.
     if (targets.size === 0) {
-        logger.warn({ sessionId, event }, 'Nenhum Webhook URL definido para este evento.');
+        // logger.debug({ sessionId, event }, 'Nenhum Webhook URL definido/habilitado para este evento.');
         return;
     }
     
     const promises = Array.from(targets).map(url => {
-        console.log(`[DEBUG] Disparando para: ${url}`);
         return triggerWebhook(url, sessionId, event, payload);
     });
 
@@ -637,8 +654,6 @@ const triggerAllWebhooks = (sessionId, event, payload = {}) => {
             const targetUrl = Array.from(targets)[index];
             if (result.status === 'rejected') {
                 logger.error({ sessionId, url: targetUrl, event, err: result.reason }, '❌ Falha ao disparar Webhook');
-            } else {
-                console.log({ sessionId, url: targetUrl, event }, '✅ Webhook enviado com sucesso');
             }
         });
     }).catch(e => {

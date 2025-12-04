@@ -18,14 +18,15 @@ const chromeBin = process.env.CHROME_BIN || null
 const headless = process.env.HEADLESS ? (process.env.HEADLESS).toLowerCase() === 'true' : true
 const releaseBrowserLock = process.env.RELEASE_BROWSER_LOCK ? (process.env.RELEASE_BROWSER_LOCK).toLowerCase() === 'true' : true
 const logLevel = process.env.LOG_LEVEL || 'info'
-const enableWebHook = process.env.ENABLE_WEBHOOK ? (process.env.ENABLE_WEBHOOK).toLowerCase() === 'true' : true
+const enableWebHook = process.env.ENABLE_WEBHOOK ? (process.env.ENABLE_WEBHOOK).toLowerCase() === 'true' : false
 const enableWebSocket = process.env.ENABLE_WEBSOCKET ? (process.env.ENABLE_WEBSOCKET).toLowerCase() === 'true' : false
 const autoStartSessions = process.env.AUTO_START_SESSIONS ? (process.env.AUTO_START_SESSIONS).toLowerCase() === 'true' : true
 const basePath = process.env.BASE_PATH || ''
 const trustProxy = process.env.TRUST_PROXY ? (process.env.TRUST_PROXY).toLowerCase() === 'true' : false
-const rawCallbacks = process.env.CALLBACK_WEBHOOKS || '';
-const callbackURLList = rawCallbacks.split('|').map(url => url.trim()).filter(url => url !== '');
-const baseWebhookURL = process.env.BASE_WEBHOOK_URL;
+const rawCallbacks = process.env.CALLBACK_WEBHOOKS || ''
+const callbackURLList = rawCallbacks.split('|').map(url => url.trim()).filter(url => url !== '')
+const baseWebhookURL = process.env.BASE_WEBHOOK_URL
+const disableGlobalWebhooks = process.env.DISABLE_GLOBAL_WEBHOOKS === 'true'
 
 module.exports = {
   sessionFolderPath,
@@ -50,5 +51,6 @@ module.exports = {
   basePath,
   trustProxy,
   baseWebhookURL,
-  callbackURLList
+  callbackURLList,
+  disableGlobalWebhooks
 }

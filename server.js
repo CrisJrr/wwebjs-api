@@ -6,6 +6,7 @@ const { baseWebhookURL, enableWebHook, enableWebSocket, autoStartSessions } = re
 const { logger } = require('./src/logger')
 const { handleUpgrade } = require('./src/websocket')
 const { restoreSessions } = require('./src/sessions')
+const { startRabbitMQ } = require('./src/services/rabbitmqService') // <--- ADICIONE ISSO
 
 // Start the server
 const port = process.env.PORT || 3000
@@ -16,9 +17,15 @@ if (!baseWebhookURL && enableWebHook) {
   process.exit(1) // Terminate the application with an error code
 }
 
-const server = app.listen(port, () => {
+const server = app.listen(port, async () => { // <--- Note o "async" aqui se quiser usar await, mas não é estritamente necessário se a função tratar erros internamente
   logger.info(`Server running on port ${port}`)
   logger.debug({ configuration: require('./src/config') }, 'Service configuration')
+  
+  // <--- ADICIONE O BLOCO ABAIXO
+  logger.info('Iniciando conexão com RabbitMQ...')
+  await startRabbitMQ(); 
+  // <--- FIM DO BLOCO
+
   if (autoStartSessions) {
     logger.info('Starting all sessions')
     restoreSessions()
