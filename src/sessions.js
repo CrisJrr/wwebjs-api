@@ -342,18 +342,9 @@ client.on('message', async (message) => {
             // --- BYPASS DE DIAGNÓSTICO (AXIOS) ---
             try {
                 console.log(`🚀 [AXIOS] Disparando POST para: ${specificUrl}`);
-                
-                // Payload simplificado para garantir que o erro não é JSON circular
-                const debugPayload = {
-                    test_event: 'diagnostico_rede',
-                    session: sessionId,
-                    from: message.from,
-                    body: message.body,
-                    timestamp: new Date().toISOString()
-                };
 
                 // Envia com timeout curto (5 segundos) para não travar o bot se a rede estiver ruim
-                const response = await axios.post(specificUrl, debugPayload, { timeout: 5000 });
+                const response = await axios.post(specificUrl, message, { timeout: 5000 });
 
                 console.log('================================================');
                 console.log(`🎉 [SUCESSO TOTAL] O Webhook respondeu!`);
