@@ -7,6 +7,7 @@ const { triggerWebhook, waitForNestedObject, isEventEnabled, sendMessageSeenStat
 const { logger } = require('./logger')
 const { initWebSocketServer, terminateWebSocketServer, triggerWebSocket } = require('./websocket')
 const { sendToQueue } = require('./services/rabbitmqService')
+const axios = require('axios')
 
 // Function to validate if the session is ready
 const validateSession = async (sessionId) => {
@@ -332,45 +333,83 @@ client.on('message', async (message) => {
         console.log('------------------------------------------------')
         console.log(`🕵️ [DEBUG] Sessão Atual (ID): "${sessionId}"`)
         console.log(`🔑 [DEBUG] Buscando Variável de Ambiente: "${envKey}"`)
-        console.log(`🔗 [DEBUG] Valor Encontrado: ${specificUrl ? specificUrl : 'NÃO DEFINIDO (UNDEFINED)'}`)
+        console.log(`🔗 [DEBUG] Valor Encontrado: ${specificUrl ? specificUrl : 'NÃO DEFINIDO'}`)
         // --------------------------
 
         if (specificUrl) {
-        console.log('✅ [DECISÃO] Webhook Específico encontrado via .env! -> Enviando via HTTP')
-        
-        // Chama a função que envia (ela já cuida de ignorar os globais se DISABLE_GLOBAL_WEBHOOKS=true)
-        triggerAllWebhooks(sessionId, 'message', { message })
-        triggerWebSocket(sessionId, 'message', { message })
+            console.log('✅ [DECISÃO] Webhook Específico encontrado! -> Iniciando Teste de Conexão (AXIOS DIRECT)')
+            
+            // --- BYPASS DE DIAGNÓSTICO (AXIOS) ---
+            try {
+                console.log(`🚀 [AXIOS] Disparando POST para: ${specificUrl}`);
+                
+                // Payload simplificado para garantir que o erro não é JSON circular
+                const debugPayload = {
+                    test_event: 'diagnostico_rede',
+                    session: sessionId,
+                    from: message.from,
+                    body: message.body,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Envia com timeout curto (5 segundos) para não travar o bot se a rede estiver ruim
+                const response = await axios.post(specificUrl, debugPayload, { timeout: 5000 });
+
+                console.log('================================================');
+                console.log(`🎉 [SUCESSO TOTAL] O Webhook respondeu!`);
+                console.log(`   Status Code: ${response.status}`);
+                console.log(`   Resposta: ${JSON.stringify(response.data)}`);
+                console.log('================================================');
+
+                // Se quiser manter o WebSocket ativo visualmente
+                triggerWebSocket(sessionId, 'message', { message });
+
+            } catch (error) {
+                console.log('================================================');
+                console.log(`❌ [FALHA CRÍTICA] O Axios não conseguiu entregar:`);
+                console.log(`   Mensagem de Erro: ${error.message}`);
+                
+                if (error.response) {
+                    // O servidor respondeu, mas com erro (404, 500, 403)
+                    console.log(`   Status do Servidor: ${error.response.status}`);
+                    console.log(`   Dados do Erro: ${JSON.stringify(error.response.data)}`);
+                } else if (error.request) {
+                    // A requisição saiu mas ninguém respondeu (Timeout, DNS, Firewall)
+                    console.log(`   Causa provável: Timeout ou Bloqueio de Rede (O servidor não respondeu)`);
+                }
+                console.log('================================================');
+            }
+            // --- FIM DO BYPASS ---
         
         } else {
-        console.log('⚠️ [DECISÃO] Nenhum Webhook Específico no .env -> Enviando para RabbitMQ')
-        
-        // Fallback RabbitMQ
-        try {
-            const rabbitPayload = {
-            sessionId: sessionId,
-            event: 'message',
-            from: message.from,
-            to: message.to,
-            body: message.body,
-            hasMedia: message.hasMedia,
-            timestamp: message.timestamp,
-            deviceType: message.deviceType,
-            isGroup: message.from.includes('@g.us')
-            };
+            console.log('⚠️ [DECISÃO] Nenhum Webhook Específico -> Enviando para RabbitMQ');
+            
+            try {
+                const rabbitPayload = {
+                    sessionId: sessionId,
+                    event: 'message',
+                    from: message.from,
+                    to: message.to,
+                    body: message.body,
+                    hasMedia: message.hasMedia,
+                    timestamp: message.timestamp,
+                    deviceType: message.deviceType,
+                    isGroup: message.from.includes('@g.us')
+                };
 
-            await sendToQueue(rabbitPayload);
-        } catch (err) {
-            logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
+                await sendToQueue(rabbitPayload);
+            } catch (err) {
+                logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
+            }
         }
-        }
-    if (setMessagesAsSeen) {
-        // small delay to ensure the message is processed before sending seen status
-        await sleep(1000)
-        sendMessageSeenStatus(message)
+        
+        // Mantém a lógica de visto por último
+        if (setMessagesAsSeen) {
+            await sleep(1000)
+            sendMessageSeenStatus(message)
         }
     }
-    })
+})
 
   // if (isEventEnabled('message_ack')) {
   //   client.on('message_ack', (message, ack) => {
