@@ -324,47 +324,57 @@ const initializeEvents = (client, sessionId) => {
 
   client.on('message', async (message) => {
     if (isEventEnabled('message')) {
-      triggerAllWebhooks(sessionId, 'message', { message })
-      triggerWebSocket(sessionId, 'message', { message })
+        // 1. Verificamos se existe Webhook Específico configurado
+        const envKey = 'SESSION_' + sessionId.toUpperCase() + '_WEBHOOK_URL'
+        const hasSpecificWebhook = !!process.env[envKey]
+        
+        if (hasSpecificWebhook) {
+        // --- CENÁRIO A: Tem Webhook ---
+        // Envia via HTTP e ignora o RabbitMQ
+        // (A função triggerAllWebhooks já cuida da lógica de enviar ou não para os globais baseada na sua config anterior)
+        triggerAllWebhooks(sessionId, 'message', { message })
+        triggerWebSocket(sessionId, 'message', { message })
+        
+        } else {
+        try {
+            // Montamos um payload limpo para o Engenheiro de Dados (Você)
+            const rabbitPayload = {
+                sessionId: sessionId,
+                event: 'message',
+                from: message.from, // Quem mandou (ex: 551199999999@c.us)
+                to: message.to,
+                body: message.body, // O texto da mensagem
+                hasMedia: message.hasMedia,
+                timestamp: message.timestamp,
+                deviceType: message.deviceType,
+                isGroup: message.from.includes('@g.us') // Flag útil para analise
+            };
 
-      try {
-          // Montamos um payload limpo para o Engenheiro de Dados (Você)
-          const rabbitPayload = {
-              sessionId: sessionId,
-              event: 'message',
-              from: message.from, // Quem mandou (ex: 551199999999@c.us)
-              to: message.to,
-              body: message.body, // O texto da mensagem
-              hasMedia: message.hasMedia,
-              timestamp: message.timestamp,
-              deviceType: message.deviceType,
-              isGroup: message.from.includes('@g.us') // Flag útil para analise
-          };
+            // Envia para a fila 'tarefas_importantes'
+            await sendToQueue(rabbitPayload);
+            // logger.info({ sessionId, from: message.from }, 'Mensagem enviada para RabbitMQ'); 
 
-          // Envia para a fila 'tarefas_importantes'
-          await sendToQueue(rabbitPayload);
-          // logger.info({ sessionId, from: message.from }, 'Mensagem enviada para RabbitMQ'); 
+        } catch (err) {
+            logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
+        }
+        }
 
-      } catch (err) {
-          logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
-      }
-
-      if (message.hasMedia && message._data?.size < maxAttachmentSize) {
-      // custom service event
+        if (message.hasMedia && message._data?.size < maxAttachmentSize) {
+        // custom service event
         if (isEventEnabled('media')) {
-          message.downloadMedia().then(messageMedia => {
+            message.downloadMedia().then(messageMedia => {
             triggerAllWebhooks(sessionId, 'media', { messageMedia, message })
             triggerWebSocket(sessionId, 'media', { messageMedia, message })
-          }).catch(error => {
+            }).catch(error => {
             logger.error({ sessionId, err: error }, 'Failed to download media')
-          })
+            })
         }
-      }
+        }
     }
     if (setMessagesAsSeen) {
-      // small delay to ensure the message is processed before sending seen status
-      await sleep(1000)
-      sendMessageSeenStatus(message)
+        // small delay to ensure the message is processed before sending seen status
+        await sleep(1000)
+        sendMessageSeenStatus(message)
     }
   })
 
