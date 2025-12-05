@@ -14,15 +14,14 @@ FROM base AS deps
 
 COPY package*.json ./
 
-# Removemos o --ignore-scripts para garantir que libs nativas compilem se necessário
+# Instala dependências (incluindo devDependencies para build se necessário)
 RUN npm ci --include=dev
 
 # --- Estágio Final ---
 FROM base
 
 # 1. Instalação robusta (Chromium + Fontes + Init System)
-# dumb-init: Evita "processos zumbis" do Chrome que comem memória
-# fonts-*: WhatsApp Web usa fontes específicas, se faltar, ele trava o canvas
+# REMOVIDO: fonts-symbol-extra (não existe no Debian Bookworm)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     chromium \
@@ -33,13 +32,11 @@ RUN apt-get update && \
     fonts-wqy-zenhei \
     fonts-thai-tlwg \
     fonts-kacst \
-    fonts-symbol-extra \
     fonts-noto-color-emoji \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Criação explicita da pasta de sessões com permissão
-# Isso evita aquele erro de "ENOENT: no such file or directory"
 RUN mkdir -p sessions && chmod 777 sessions
 
 # Copia dependências
