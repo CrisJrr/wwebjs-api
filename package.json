@@ -9,7 +9,6 @@
     "swagger": "node swagger.js"
   },
   "dependencies": {
-    "amqplib": "^0.10.9",
     "axios": "^1.13.2",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",

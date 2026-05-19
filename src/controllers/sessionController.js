@@ -2,6 +2,7 @@ const qr = require('qr-image')
 const { setupSession, deleteSession, reloadSession, validateSession, flushSessions, destroySession, sessions } = require('../sessions')
 const { sendErrorResponse, waitForNestedObject, exposeFunctionIfAbsent } = require('../utils')
 const { logger } = require('../logger')
+const webhookStore = require('../webhookStore')
 
 /**
  * Starts a session for the given session ID.
@@ -453,6 +454,26 @@ const getPageScreenshot = async (req, res) => {
   }
 }
 
+/**
+ * Configure a dynamic webhook for a session.
+ *
+ * @function
+ * @async
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ */
+const setWebhook = async (req, res) => {
+  const sessionId = req.params.sessionId
+  const { webhookUrl } = req.body
+  try {
+    await webhookStore.setWebhookForSession(sessionId, webhookUrl)
+    res.json({ success: true, message: 'Webhook configured successfully' })
+  } catch (error) {
+    logger.error({ sessionId, err: error }, 'Failed to set webhook')
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   startSession,
   stopSession,
@@ -465,5 +486,6 @@ module.exports = {
   terminateInactiveSessions,
   terminateAllSessions,
   getSessions,
-  getPageScreenshot
+  getPageScreenshot,
+  setWebhook
 }

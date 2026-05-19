@@ -49,6 +49,7 @@ sessionRouter.get('/terminate/:sessionId', middleware.sessionNameValidation, ses
 sessionRouter.get('/terminateInactive', sessionController.terminateInactiveSessions)
 sessionRouter.get('/terminateAll', sessionController.terminateAllSessions)
 sessionRouter.get('/getPageScreenshot/:sessionId', middleware.sessionNameValidation, sessionController.getPageScreenshot)
+sessionRouter.post('/webhook/:sessionId', middleware.sessionNameValidation, sessionController.setWebhook)
 
 /**
  * ================

@@ -6,7 +6,6 @@ const { disableGlobalWebhooks, baseWebhookURL, callbackURLList, sessionFolderPat
 const { triggerWebhook, waitForNestedObject, isEventEnabled, sendMessageSeenStatus, sleep, patchWWebLibrary } = require('./utils')
 const { logger } = require('./logger')
 const { initWebSocketServer, terminateWebSocketServer, triggerWebSocket } = require('./websocket')
-const { sendToQueue } = require('./services/rabbitmqService')
 const axios = require('axios')
 
 // Function to validate if the session is ready
@@ -326,13 +325,29 @@ const initializeEvents = (client, sessionId) => {
 client.on('message', async (message) => {
     if (isEventEnabled('message')) {
         
+        const { getWebhookForSession } = require('./webhookStore')
+        
         // --- DEBUG AREA: INICIO ---
         const envKey = 'SESSION_' + sessionId.toUpperCase() + '_WEBHOOK_URL'
-        const specificUrl = process.env[envKey]
+        
+        // 1. Tenta pegar a URL dinâmica (salva no webhooks.json via API)
+        let specificUrl = await getWebhookForSession(sessionId)
+        
+        // 2. Fallback para .env
+        if (!specificUrl) {
+            specificUrl = process.env[envKey]
+        }
+        
+        // --- NOVA LÓGICA DE URL PADRÃO ---
+        if (!specificUrl && baseWebhookURL) {
+            const cleanBaseUrl = baseWebhookURL.replace(/\/+$/, '');
+            specificUrl = `${cleanBaseUrl}/webhook/${sessionId}`;
+            console.log(`🔄 [AUTO-URL] Gerando URL dinâmica a partir do BASE_WEBHOOK_URL: ${specificUrl}`);
+        }
         
         console.log('------------------------------------------------')
         console.log(`🕵️ [DEBUG] Sessão Atual (ID): "${sessionId}"`)
-        console.log(`🔑 [DEBUG] Buscando Variável de Ambiente: "${envKey}"`)
+        console.log(`🔑 [DEBUG] Buscando Variável de Ambiente: "${envKey}" ou fallback para BASE_WEBHOOK_URL`)
         console.log(`🔗 [DEBUG] Valor Encontrado: ${specificUrl ? specificUrl : 'NÃO DEFINIDO'}`)
         // --------------------------
 
@@ -373,25 +388,9 @@ client.on('message', async (message) => {
             // --- FIM DO BYPASS ---
         
         } else {
-            console.log('⚠️ [DECISÃO] Nenhum Webhook Específico -> Enviando para RabbitMQ');
-            
-            try {
-                const rabbitPayload = {
-                    sessionId: sessionId,
-                    event: 'message',
-                    from: message.from,
-                    to: message.to,
-                    body: message.body,
-                    hasMedia: message.hasMedia,
-                    timestamp: message.timestamp,
-                    deviceType: message.deviceType,
-                    isGroup: message.from.includes('@g.us')
-                };
-
-                await sendToQueue(rabbitPayload);
-            } catch (err) {
-                logger.error({ sessionId, err }, 'Falha ao enviar mensagem para RabbitMQ');
-            }
+            console.log('⚠️ [DECISÃO] Nenhum Webhook Específico configurado -> Acionando Webhooks Globais (se habilitados)');
+            triggerAllWebhooks(sessionId, 'message', { message })
+            triggerWebSocket(sessionId, 'message', { message })
         }
         
         // Mantém a lógica de visto por último
@@ -647,13 +646,27 @@ const flushSessions = async (deleteOnlyInactive) => {
   }
 }
 
-const triggerAllWebhooks = (sessionId, event, payload = {}) => {
+const triggerAllWebhooks = async (sessionId, event, payload = {}) => {
     // --- DEBUG LOGS ---
     // console.log(`[DEBUG] triggerAllWebhooks chamado para Sessão: ${sessionId}, Evento: ${event}`);
 
+    const { getWebhookForSession } = require('./webhookStore')
     const envKey = 'SESSION_' + sessionId.toUpperCase() + '_WEBHOOK_URL';
-    const sessionSpecificUrl = process.env[envKey];
     
+    // 1. Tenta pegar a URL dinâmica (salva no webhooks.json via API)
+    let sessionSpecificUrl = await getWebhookForSession(sessionId)
+    
+    // 2. Fallback para .env
+    if (!sessionSpecificUrl) {
+        sessionSpecificUrl = process.env[envKey];
+    }
+    
+    // --- LÓGICA DE URL PADRÃO PARA OUTROS EVENTOS ---
+    if (!sessionSpecificUrl && baseWebhookURL) {
+        const cleanBaseUrl = baseWebhookURL.replace(/\/+$/, '');
+        sessionSpecificUrl = `${cleanBaseUrl}/webhook/${sessionId}`;
+    }
+
     // Verifica se callbackURLList existe para evitar crash
     if (!callbackURLList) {
         logger.error(`[CRITICO] callbackURLList é undefined!`);
