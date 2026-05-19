@@ -325,6 +325,9 @@ const initializeEvents = (client, sessionId) => {
 client.on('message', async (message) => {
     if (isEventEnabled('message')) {
         
+        const { logger } = require('./logger')
+        logger.info('!!! MENSAGEM CHEGOU NA API !!!')
+        
         const { getWebhookForSession } = require('./webhookStore')
         
         // --- DEBUG AREA: INICIO ---
@@ -342,17 +345,17 @@ client.on('message', async (message) => {
         if (!specificUrl && baseWebhookURL) {
             const cleanBaseUrl = baseWebhookURL.replace(/\/+$/, '');
             specificUrl = `${cleanBaseUrl}/webhook/${sessionId}`;
-            console.log(`🔄 [AUTO-URL] Gerando URL dinâmica a partir do BASE_WEBHOOK_URL: ${specificUrl}`);
+            logger.info(`🔄 [AUTO-URL] Gerando URL dinâmica a partir do BASE_WEBHOOK_URL: ${specificUrl}`);
         }
         
-        console.log('------------------------------------------------')
-        console.log(`🕵️ [DEBUG] Sessão Atual (ID): "${sessionId}"`)
-        console.log(`🔑 [DEBUG] Buscando Variável de Ambiente: "${envKey}" ou fallback para BASE_WEBHOOK_URL`)
-        console.log(`🔗 [DEBUG] Valor Encontrado: ${specificUrl ? specificUrl : 'NÃO DEFINIDO'}`)
+        logger.info('------------------------------------------------')
+        logger.info(`🕵️ [DEBUG] Sessão Atual (ID): "${sessionId}"`)
+        logger.info(`🔑 [DEBUG] Buscando Variável de Ambiente: "${envKey}" ou fallback para BASE_WEBHOOK_URL`)
+        logger.info(`🔗 [DEBUG] Valor Encontrado: ${specificUrl ? specificUrl : 'NÃO DEFINIDO'}`)
         // --------------------------
 
         if (specificUrl) {
-            console.log('✅ [DECISÃO] Webhook Específico encontrado! -> Iniciando Teste de Conexão (AXIOS DIRECT)')
+            logger.info('✅ [DECISÃO] Webhook Específico encontrado! -> Iniciando Teste de Conexão (AXIOS DIRECT)')
             
             // --- BYPASS DE DIAGNÓSTICO (AXIOS) ---
             try {
